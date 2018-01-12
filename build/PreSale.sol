@@ -271,16 +271,16 @@ contract RDT is MintableToken {
   uint256 endMint = 1522260000;
   /* freeze team tokens until Mar 2019 */
   uint256 teamFreeze = 1551398400;
-  address public teamWallet = 0x627306090abaB3A6e1400e9345bC60c78a8BEf57;
+  address public teamWallet = 0x52853f8189482C059ceA50F5BcFf849FcA311a2A;
 
 
   function RDT() public
   {
     uint256 teamTokens = 7500000000000000000000000;
     uint256 bonusTokens = 2500000000000000000000000;
-    address bonusWallet = 0xf17f52151EbEF6C7334FAD080c5704D77216b732;
+    address bonusWallet = 0x9D1Ed168DfD0FdeB78dEa2e25F51E4E77b75315c;
     uint256 reserveTokens = 3000000000000000000000000;
-    address reserveWallet = 0xC5fdf4076b8F3A5357c5E395ab970B5B54098Fef;
+    address reserveWallet = 0x997BFceD5B2c1ffce76c953E22AFC3c6af6c497F;
     mint(teamWallet,teamTokens);
     mint(bonusWallet,bonusTokens);
     mint(reserveWallet,reserveTokens);
