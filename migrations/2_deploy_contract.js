@@ -7,5 +7,5 @@ module.exports = function(deployer, network, accounts) {
   const endTime = 1517162400
   const wallet = "0xFfc13f5F46BabD345db7E6AD2DAd229eC427Bf40"
   console.log(wallet)
-  deployer.deploy(PreSale, startTime, endTime, rate, cap, wallet)
+  deployer.deploy(PreSale, startTime, endTime, rate, cap, wallet, {gas: 4000000})
 };
