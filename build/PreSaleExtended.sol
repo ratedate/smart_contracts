@@ -1,4 +1,16 @@
-pragma solidity ^0.4.18;
+pragma solidity ^0.4.11;
+
+/**
+ * @title ERC20Basic
+ * @dev Simpler version of ERC20 interface
+ * @dev see https://github.com/ethereum/EIPs/issues/179
+ */
+contract ERC20Basic {
+  uint256 public totalSupply;
+  function balanceOf(address who) public view returns (uint256);
+  function transfer(address to, uint256 value) public returns (bool);
+  event Transfer(address indexed from, address indexed to, uint256 value);
+}
 
 /**
  * @title SafeMath
@@ -31,18 +43,6 @@ library SafeMath {
     assert(c >= a);
     return c;
   }
-}
-
-/**
- * @title ERC20Basic
- * @dev Simpler version of ERC20 interface
- * @dev see https://github.com/ethereum/EIPs/issues/179
- */
-contract ERC20Basic {
-  uint256 public totalSupply;
-  function balanceOf(address who) public view returns (uint256);
-  function transfer(address to, uint256 value) public returns (bool);
-  event Transfer(address indexed from, address indexed to, uint256 value);
 }
 
 /**
@@ -259,6 +259,56 @@ contract MintableToken is StandardToken, Ownable {
   }
 }
 
+contract RDT is MintableToken {
+  string public name = "Rate Date Token";
+  string public symbol = "RDT";
+  uint8 public decimals = 18;
+  /* 50 000 000 cap for RDT tokens */
+  uint256 public cap = 50000000000000000000000000;
+  /* freeze transfer until 15 Apr 2018 */
+  uint256 transferFreezeUntil = 1523793600;
+  /* End mint 28 Mar 2018(ICO end date) */
+  uint256 endMint = 1522260000;
+  /* freeze team tokens until Mar 2019 */
+  uint256 teamFreeze = 1551398400;
+  address public teamWallet = 0x52853f8189482C059ceA50F5BcFf849FcA311a2A;
+
+
+  function RDT() public
+  {
+    uint256 teamTokens = 7500000000000000000000000;
+    uint256 bonusTokens = 2500000000000000000000000;
+    address bonusWallet = 0x9D1Ed168DfD0FdeB78dEa2e25F51E4E77b75315c;
+    uint256 reserveTokens = 3000000000000000000000000;
+    address reserveWallet = 0x997BFceD5B2c1ffce76c953E22AFC3c6af6c497F;
+    mint(teamWallet,teamTokens);
+    mint(bonusWallet,bonusTokens);
+    mint(reserveWallet,reserveTokens);
+  }
+
+  function mint(address _to, uint256 _amount) onlyOwner canMint public returns (bool){
+    require(endMint >= now);
+    require(totalSupply.add(_amount) <= cap);
+    return super.mint(_to, _amount);
+  }
+
+  modifier notFrozen(){
+    require(transferFreezeUntil <= now);
+    if(msg.sender==teamWallet){
+      require(now >= teamFreeze);
+    }
+    _;
+  }
+
+  function transfer(address _to, uint256 _value) notFrozen public returns (bool) {
+    return super.transfer(_to, _value);
+  }
+
+  function transferFrom(address _from, address _to, uint256 _value) notFrozen public returns (bool){
+    return super.transferFrom(_from, _to, _value);
+  }
+}
+
 /**
  * @title Crowdsale
  * @dev Crowdsale is a base contract for managing a token crowdsale.
@@ -396,128 +446,28 @@ contract CappedCrowdsale is Crowdsale {
 
 }
 
-contract RDT is MintableToken {
-  string public name = "Rate Date Token";
-  string public symbol = "RDT";
-  uint8 public decimals = 18;
-  /* 50 000 000 cap for RDT tokens */
-  uint256 public cap = 50000000000000000000000000;
-  /* freeze transfer until 15 Apr 2018 */
-  uint256 transferFreezeUntil = 1523793600;
-  /* End mint 28 Mar 2018(ICO end date) */
-  uint256 endMint = 1522260000;
-  /* freeze team tokens until Mar 2019 */
-  uint256 teamFreeze = 1551398400;
-  address public teamWallet = 0x52853f8189482C059ceA50F5BcFf849FcA311a2A;
-
-
-  function RDT() public
-  {
-    uint256 teamTokens = 7500000000000000000000000;
-    uint256 bonusTokens = 2500000000000000000000000;
-    address bonusWallet = 0x9D1Ed168DfD0FdeB78dEa2e25F51E4E77b75315c;
-    uint256 reserveTokens = 3000000000000000000000000;
-    address reserveWallet = 0x997BFceD5B2c1ffce76c953E22AFC3c6af6c497F;
-    mint(teamWallet,teamTokens);
-    mint(bonusWallet,bonusTokens);
-    mint(reserveWallet,reserveTokens);
-  }
-
-  function mint(address _to, uint256 _amount) onlyOwner canMint public returns (bool){
-    require(endMint >= now);
-    require(totalSupply.add(_amount) <= cap);
-    return super.mint(_to, _amount);
-  }
-
-  modifier notFrozen(){
-    require(transferFreezeUntil <= now);
-    if(msg.sender==teamWallet){
-      require(now >= teamFreeze);
-    }
-    _;
-  }
-
-  function transfer(address _to, uint256 _value) notFrozen public returns (bool) {
-    return super.transfer(_to, _value);
-  }
-
-  function transferFrom(address _from, address _to, uint256 _value) notFrozen public returns (bool){
-    return super.transferFrom(_from, _to, _value);
-  }
-}
-
-contract ICO is CappedCrowdsale, Ownable{
+contract PreSaleExtended is CappedCrowdsale, Ownable{
   uint256 public minAmount = 1 ether/10;
 
-  mapping(address => uint256) balances;
-
-  function ICO(uint256 _startTime, uint256 _endTime, uint256 _rate, uint256 _cap, address _wallet, MintableToken _token) public
-  CappedCrowdsale(_cap)
-  Crowdsale(_startTime, _endTime, _rate, _wallet)
+  function PreSaleExtended(uint256 _startTime, uint256 _endTime, uint256 _rate, uint256 _cap, address _wallet, MintableToken _token, uint256 _weiRaised) public
+    CappedCrowdsale(_cap)
+    Crowdsale(_startTime, _endTime, _rate, _wallet)
   {
-    require(_token != address(0));
+    require(_token!=address(0));
+    require(_weiRaised > 0);
     token = _token;
+    weiRaised = _weiRaised;
+  }
+  function validPurchase() internal view returns (bool){
+    bool overMinAmount = msg.value >= minAmount;
+    return super.validPurchase() && overMinAmount;
   }
   function createTokenContract() internal returns (MintableToken) {
     return token;
   }
-
-
-  function balanceOf(address _owner) public view returns (uint256 balance) {
-    return balances[_owner];
-  }
-
-  function getTokenAmount(uint256 weiAmount) internal view returns(uint256) {
-    uint256 bonus = 0;
-    if(now <= 1519689599){
-      bonus = 1200;
-    }
-    if(now > 1519689599 && now <= 1520294399){
-      bonus = 900;
-    }
-    if(now > 1520294399 && now <= 1520899199){
-      bonus = 600;
-    }
-    if(now > 1520899199 && now <= 1521503999){
-      bonus = 300;
-    }
-    uint256 rateWithBonus = rate.add(bonus);
-    return weiAmount.mul(rateWithBonus);
-  }
-
-  function validPurchase() internal view returns (bool) {
-    bool overMinAmount = msg.value >= minAmount;
-    return super.validPurchase() && overMinAmount;
-  }
-
-  function initICO() public onlyOwner returns (bool) {
-    token.mint(this, 34423767855514000000000000);
+  function startICO(address contractICO) onlyOwner public returns(bool){
+    require(now > endTime);
+    token.transferOwnership(contractICO);
     return true;
   }
-
-
-  function allowTransfer(address _spender) public onlyOwner returns (bool){
-    token.approve(_spender, 34423767855514000000000000);
-    return true;
-  }
-
-  function buyTokens(address beneficiary) public payable {
-    require(beneficiary != address(0));
-    require(validPurchase());
-
-    uint256 weiAmount = msg.value;
-
-    // calculate token amount to be created
-    uint256 tokens = getTokenAmount(weiAmount);
-
-    // update state
-    weiRaised = weiRaised.add(weiAmount);
-
-
-    balances[beneficiary] = balances[beneficiary].add(tokens);
-    TokenPurchase(msg.sender, beneficiary, weiAmount, tokens);
-
-    forwardFunds();
-  }
-
 }

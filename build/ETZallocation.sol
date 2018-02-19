@@ -1,4 +1,16 @@
-pragma solidity ^0.4.18;
+pragma solidity ^0.4.11;
+
+/**
+ * @title ERC20Basic
+ * @dev Simpler version of ERC20 interface
+ * @dev see https://github.com/ethereum/EIPs/issues/179
+ */
+contract ERC20Basic {
+  uint256 public totalSupply;
+  function balanceOf(address who) public view returns (uint256);
+  function transfer(address to, uint256 value) public returns (bool);
+  event Transfer(address indexed from, address indexed to, uint256 value);
+}
 
 /**
  * @title SafeMath
@@ -31,18 +43,6 @@ library SafeMath {
     assert(c >= a);
     return c;
   }
-}
-
-/**
- * @title ERC20Basic
- * @dev Simpler version of ERC20 interface
- * @dev see https://github.com/ethereum/EIPs/issues/179
- */
-contract ERC20Basic {
-  uint256 public totalSupply;
-  function balanceOf(address who) public view returns (uint256);
-  function transfer(address to, uint256 value) public returns (bool);
-  event Transfer(address indexed from, address indexed to, uint256 value);
 }
 
 /**
@@ -259,143 +259,6 @@ contract MintableToken is StandardToken, Ownable {
   }
 }
 
-/**
- * @title Crowdsale
- * @dev Crowdsale is a base contract for managing a token crowdsale.
- * Crowdsales have a start and end timestamps, where investors can make
- * token purchases and the crowdsale will assign them tokens based
- * on a token per ETH rate. Funds collected are forwarded to a wallet
- * as they arrive.
- */
-contract Crowdsale {
-  using SafeMath for uint256;
-
-  // The token being sold
-  MintableToken public token;
-
-  // start and end timestamps where investments are allowed (both inclusive)
-  uint256 public startTime;
-  uint256 public endTime;
-
-  // address where funds are collected
-  address public wallet;
-
-  // how many token units a buyer gets per wei
-  uint256 public rate;
-
-  // amount of raised money in wei
-  uint256 public weiRaised;
-
-  /**
-   * event for token purchase logging
-   * @param purchaser who paid for the tokens
-   * @param beneficiary who got the tokens
-   * @param value weis paid for purchase
-   * @param amount amount of tokens purchased
-   */
-  event TokenPurchase(address indexed purchaser, address indexed beneficiary, uint256 value, uint256 amount);
-
-
-  function Crowdsale(uint256 _startTime, uint256 _endTime, uint256 _rate, address _wallet) public {
-    require(_startTime >= now);
-    require(_endTime >= _startTime);
-    require(_rate > 0);
-    require(_wallet != address(0));
-
-    token = createTokenContract();
-    startTime = _startTime;
-    endTime = _endTime;
-    rate = _rate;
-    wallet = _wallet;
-  }
-
-  // creates the token to be sold.
-  // override this method to have crowdsale of a specific mintable token.
-  function createTokenContract() internal returns (MintableToken) {
-    return new MintableToken();
-  }
-
-
-  // fallback function can be used to buy tokens
-  function () external payable {
-    buyTokens(msg.sender);
-  }
-
-  // Override this method to have a way to add business logic to your crowdsale when buying
-  function getTokenAmount(uint256 weiAmount) internal view returns(uint256) {
-    return weiAmount.mul(rate);
-  }
-
-  // low level token purchase function
-  function buyTokens(address beneficiary) public payable {
-    require(beneficiary != address(0));
-    require(validPurchase());
-
-    uint256 weiAmount = msg.value;
-
-    // calculate token amount to be created
-    uint256 tokens = getTokenAmount(weiAmount);
-
-    // update state
-    weiRaised = weiRaised.add(weiAmount);
-
-    token.mint(beneficiary, tokens);
-    TokenPurchase(msg.sender, beneficiary, weiAmount, tokens);
-
-    forwardFunds();
-  }
-
-  // send ether to the fund collection wallet
-  // override to create custom fund forwarding mechanisms
-  function forwardFunds() internal {
-    wallet.transfer(msg.value);
-  }
-
-  // @return true if the transaction can buy tokens
-  function validPurchase() internal view returns (bool) {
-    bool withinPeriod = now >= startTime && now <= endTime;
-    bool nonZeroPurchase = msg.value != 0;
-    return withinPeriod && nonZeroPurchase;
-  }
-
-  // @return true if crowdsale event has ended
-  function hasEnded() public view returns (bool) {
-    return now > endTime;
-  }
-
-
-}
-
-/**
- * @title CappedCrowdsale
- * @dev Extension of Crowdsale with a max amount of funds raised
- */
-contract CappedCrowdsale is Crowdsale {
-  using SafeMath for uint256;
-
-  uint256 public cap;
-
-  function CappedCrowdsale(uint256 _cap) public {
-    require(_cap > 0);
-    cap = _cap;
-  }
-
-  // overriding Crowdsale#validPurchase to add extra cap logic
-  // @return true if investors can buy at the moment
-  function validPurchase() internal view returns (bool) {
-    bool withinCap = weiRaised.add(msg.value) <= cap;
-    return super.validPurchase() && withinCap;
-  }
-
-  // overriding Crowdsale#hasEnded to add cap logic
-  // @return true if crowdsale event has ended
-  function hasEnded() public view returns (bool) {
-    bool capReached = weiRaised >= cap;
-    return super.hasEnded() || capReached;
-  }
-
-}
-
 contract RDT is MintableToken {
   string public name = "Rate Date Token";
   string public symbol = "RDT";
@@ -446,78 +309,29 @@ contract RDT is MintableToken {
   }
 }
 
-contract ICO is CappedCrowdsale, Ownable{
-  uint256 public minAmount = 1 ether/10;
-
-  mapping(address => uint256) balances;
-
-  function ICO(uint256 _startTime, uint256 _endTime, uint256 _rate, uint256 _cap, address _wallet, MintableToken _token) public
-  CappedCrowdsale(_cap)
-  Crowdsale(_startTime, _endTime, _rate, _wallet)
-  {
-    require(_token != address(0));
+contract ETZallocation is Ownable{
+  RDT public token;
+  bool public allocated = false;
+  function ETZallocation (RDT _token) public{
+    require(_token!=address(0));
     token = _token;
   }
-  function createTokenContract() internal returns (MintableToken) {
-    return token;
+
+  function RDTallocation() onlyOwner public {
+    require(!allocated);
+    require(token!=address(0));
+    token.mint(0x6b6dc58D937E8DB3814BA067C29689dd3CEE2126,2877002640000000000000);
+    token.mint(0x570E2260BaD08E8cf094583F5C5424d3c82d429d,35962533000000000000000);
+    token.mint(0x570E2260BaD08E8cf094583F5C5424d3c82d429d,2001012660000000000000000);
+    token.mint(0x8f43eE13B1Bc1A42E86BaF3E9b1e084dD284a513,336155490000000000000);
+    token.mint(0x8f43eE13B1Bc1A42E86BaF3E9b1e084dD284a513,342000360000000000000);
+    token.mint(0xB8A1895FBc198D165981d087EF7b41a1F6520115,449954640036000000000000);
+    allocated = true;
   }
 
-
-  function balanceOf(address _owner) public view returns (uint256 balance) {
-    return balances[_owner];
+  function startICO(address contractICO) onlyOwner public{
+    require(contractICO!=address(0));
+    require(allocated);
+    token.transferOwnership(contractICO);
   }
-
-  function getTokenAmount(uint256 weiAmount) internal view returns(uint256) {
-    uint256 bonus = 0;
-    if(now <= 1519689599){
-      bonus = 1200;
-    }
-    if(now > 1519689599 && now <= 1520294399){
-      bonus = 900;
-    }
-    if(now > 1520294399 && now <= 1520899199){
-      bonus = 600;
-    }
-    if(now > 1520899199 && now <= 1521503999){
-      bonus = 300;
-    }
-    uint256 rateWithBonus = rate.add(bonus);
-    return weiAmount.mul(rateWithBonus);
-  }
-
-  function validPurchase() internal view returns (bool) {
-    bool overMinAmount = msg.value >= minAmount;
-    return super.validPurchase() && overMinAmount;
-  }
-
-  function initICO() public onlyOwner returns (bool) {
-    token.mint(this, 34423767855514000000000000);
-    return true;
-  }
-
-
-  function allowTransfer(address _spender) public onlyOwner returns (bool){
-    token.approve(_spender, 34423767855514000000000000);
-    return true;
-  }
-
-  function buyTokens(address beneficiary) public payable {
-    require(beneficiary != address(0));
-    require(validPurchase());
-
-    uint256 weiAmount = msg.value;
-
-    // calculate token amount to be created
-    uint256 tokens = getTokenAmount(weiAmount);
-
-    // update state
-    weiRaised = weiRaised.add(weiAmount);
-
-
-    balances[beneficiary] = balances[beneficiary].add(tokens);
-    TokenPurchase(msg.sender, beneficiary, weiAmount, tokens);
-
-    forwardFunds();
-  }
-
 }
